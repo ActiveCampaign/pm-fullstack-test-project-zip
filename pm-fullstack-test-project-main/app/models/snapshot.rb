@@ -3,39 +3,63 @@ require 'mail'
 class Snapshot < ApplicationRecord
   serialize :data, JSON
 
-  def self.take
-    connection = Postmark::ApiClient.new(Rails.application.config.x.postmark.api_token)
-
-    # Fetch outbound messages
-    messages = connection.get_messages(count: 500) # Adjust the count based on your requirements
-
-    # Transform the messages into nodes and links
-    nodes = []
-    links = []
-    messages.each do |message|
-      from_address = extract_address(message[:from])
-      to_emails = message[:to]
-      to_emails.each do |email|
-        to_address = email["Name"]
-        nodes << { id: from_address }
-        nodes << { id: to_address }
-        links << { source: from_address, target: to_address }
+  class << self
+    def take
+      begin
+        # Fetch messages from Postmark
+        messages = fetch_messages
+      rescue StandardError => e
+        Rails.logger.error "Error fetching messages from Postmark: #{e.message}"
+        return nil
       end
+
+      # Transform fetched messages to a format suitable for the graph
+      data = transform_messages_to_nodes_and_links(messages)
+
+      # Create a new Snapshot instance with the transformed data
+      new(data: data)
     end
 
-    # Ensure unique nodes
-    nodes.uniq! { |node| node[:id] }
+    private
 
-    # Create data for Snapshot
-    data = {
-      nodes: nodes,
-      links: links
-    }
+    # Fetches messages from the Postmark API
+    def fetch_messages
+      connection = Postmark::ApiClient.new(Rails.application.config.x.postmark.api_token)
+      connection.get_messages(count: 500)
+    end
 
-    Snapshot.new(data: data)
-  end
+    # Transforms raw messages into graph-friendly format (nodes, links, topics)
+    def transform_messages_to_nodes_and_links(messages)
+      nodes = Set.new
+      links = Set.new
+      topics = Hash.new { |h, k| h[k] = [] }
 
-  def self.extract_address(address_string)
-    Mail::Address.new(address_string).display_name
+      messages.each do |message|
+        from_name = extract_name(message[:from])
+
+        message[:to].each do |email|
+          to_name = email["Name"]
+          key = [from_name, to_name].sort.join("-")
+
+          # Add the sender and recipient to the nodes set
+          nodes << { id: from_name }
+          nodes << { id: to_name }
+          # Add the communication link to the links set
+          links << { source: from_name, target: to_name }
+
+          # Add the subject to the topics, unless it starts with 'Re: '
+          topics[key] << message[:subject] unless message[:subject].start_with?('Re: ')
+        end
+      end
+
+      # Make the topics unique for each key
+      topics.each { |key, value| topics[key] = value.uniq }
+
+      { nodes: nodes.to_a, links: links.to_a, topics: topics }
+    end
+
+    def extract_name(message_from_string)
+      Mail::Address.new(message_from_string).display_name
+    end
   end
 end
