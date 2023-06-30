@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import ReactDOM from 'react-dom'
 import PropTypes from 'prop-types'
 
@@ -35,60 +35,75 @@ const SnapshotShape = PropTypes.shape({
 })
 
 // components
-const Inspector = ({ source, target, topics }) => (
+const Inspector = ({ source, target, topics }) => {
+  // Function to format topics with comma and 'and' before last topic
+  const formatTopics = useCallback((topics) => {
+    if (topics.length === 1) {
+      return topics[0];
+    } else {
+      const lastTopic = topics.pop();
+      return `${topics.join(', ')} and ${lastTopic}`;
+    }
+  }, []);
+
+  return (
   <p>
     {source && target ? (
       <span>
         <strong>{source}</strong> and <strong>{target}</strong> chatted about{' '}
-        <em>{topics}</em>
+        <em>{Array.isArray(topics) ? formatTopics(topics) : topics}</em>
       </span>
     ) : (
       <em>Hover your cursor over a connection line</em>
     )}
   </p>
-)
+  )
+}
+
 Inspector.propTypes = {
   source: PropTypes.string,
   target: PropTypes.string,
-  topics: PropTypes.string,
+  topics: PropTypes.arrayOf(PropTypes.string),
 }
 
-const App = ({ snapshot }) => {
-  const [currentSource, setCurrentSource] = React.useState()
-  const [currentTarget, setCurrentTarget] = React.useState()
+const App = ({ snapshot: { nodes, links, topics } }) => {
+  const [currentSource, setCurrentSource] = useState()
+  const [currentTarget, setCurrentTarget] = useState()
+  const [currentTopics, setCurrentTopics] = useState([])
 
-  const topics = 'Cheese and Wine' // FIXME
+  const handleClickNode = useCallback(() => {}, []);
+  const handleMouseOverNode = useCallback(() => {}, []);
+  const handleMouseOutNode = useCallback(() => {}, []);
+  const handleClickLink = useCallback(() => {}, []);
 
-  const handleClickNode = _nodeId => {}
+  const handleMouseOverLink = useCallback((source, target) => {
+    setCurrentSource(source);
+    setCurrentTarget(target);
+  }, []);
 
-  const handleMouseOverNode = _nodeId => {}
+  const handleMouseOutLink = useCallback(() => {
+    setCurrentSource(undefined);
+    setCurrentTarget(undefined);
+    setCurrentTopics(undefined);
+  }, []);
 
-  const handleMouseOutNode = _nodeId => {}
-
-  const handleClickLink = (_source, _target) => {}
-
-  const handleMouseOverLink = (source, target) => {
-    setCurrentSource(source)
-    setCurrentTarget(target)
-  }
-
-  const handleMouseOutLink = (_source, _target) => {
-    setCurrentSource(undefined)
-    setCurrentTarget(undefined)
-  }
+  useEffect(() => {
+    if (currentSource && currentTarget) {
+      const key = [currentSource, currentTarget].sort().join('-');
+      setCurrentTopics(topics[key] || []);
+    }
+  }, [currentSource, currentTarget, topics]);
 
   return (
     <div>
-      <div>
-        <Inspector
-          source={currentSource}
-          target={currentTarget}
-          topics={topics}
-        />
-      </div>
+      <Inspector
+        source={currentSource}
+        target={currentTarget}
+        topics={currentTopics}
+      />
       <Graph
         id='graph'
-        data={snapshot}
+        data={{ nodes, links }}
         config={D3_GRAPH_CONFIG}
         onClickNode={handleClickNode}
         onClickLink={handleClickLink}
@@ -100,21 +115,14 @@ const App = ({ snapshot }) => {
     </div>
   )
 }
+
 App.propTypes = {
   snapshot: SnapshotShape.isRequired,
 }
 
-const DUMMY_SNAPSHOT = {
-  nodes: [{ id: 'Harry' }, { id: 'Sally' }, { id: 'Alice' }],
-  links: [
-    { source: 'Harry', target: 'Sally' },
-    { source: 'Harry', target: 'Alice' },
-  ],
-}
-
 document.addEventListener('DOMContentLoaded', () => {
   ReactDOM.render(
-    <App snapshot={SNAPSHOT_DATA || DUMMY_SNAPSHOT} />,
+    <App snapshot={SNAPSHOT_DATA} />,
     document
       .getElementById('layout-wrapper')
       .appendChild(document.createElement('div'))
