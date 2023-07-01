@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useCallback } from 'react'
 import ReactDOM from 'react-dom'
 import PropTypes from 'prop-types'
 
@@ -38,11 +38,11 @@ const SnapshotShape = PropTypes.shape({
 const Inspector = ({ source, target, topics }) => {
   // Function to format topics with comma and 'and' before last topic
   const formatTopics = useCallback((topics) => {
-    if (topics.length === 1) {
+    const len = topics.length;
+    if (len === 1) {
       return topics[0];
     } else {
-      const lastTopic = topics.pop();
-      return `${topics.join(', ')} and ${lastTopic}`;
+      return `${topics.slice(0, len - 1).join(', ')} and ${topics[len - 1]}`;
     }
   }, []);
 
@@ -71,28 +71,18 @@ const App = ({ snapshot: { nodes, links, topics } }) => {
   const [currentTarget, setCurrentTarget] = useState()
   const [currentTopics, setCurrentTopics] = useState([])
 
-  const handleClickNode = useCallback(() => {}, []);
-  const handleMouseOverNode = useCallback(() => {}, []);
-  const handleMouseOutNode = useCallback(() => {}, []);
-  const handleClickLink = useCallback(() => {}, []);
-
   const handleMouseOverLink = useCallback((source, target) => {
     setCurrentSource(source);
     setCurrentTarget(target);
-  }, []);
+    const key = [source, target].sort().join('-');
+    setCurrentTopics(topics[key] || []);
+  }, [topics]);
 
   const handleMouseOutLink = useCallback(() => {
     setCurrentSource(undefined);
     setCurrentTarget(undefined);
-    setCurrentTopics(undefined);
+    setCurrentTopics([]);
   }, []);
-
-  useEffect(() => {
-    if (currentSource && currentTarget) {
-      const key = [currentSource, currentTarget].sort().join('-');
-      setCurrentTopics(topics[key] || []);
-    }
-  }, [currentSource, currentTarget, topics]);
 
   return (
     <div>
@@ -105,10 +95,6 @@ const App = ({ snapshot: { nodes, links, topics } }) => {
         id='graph'
         data={{ nodes, links }}
         config={D3_GRAPH_CONFIG}
-        onClickNode={handleClickNode}
-        onClickLink={handleClickLink}
-        onMouseOverNode={handleMouseOverNode}
-        onMouseOutNode={handleMouseOutNode}
         onMouseOverLink={handleMouseOverLink}
         onMouseOutLink={handleMouseOutLink}
       />
