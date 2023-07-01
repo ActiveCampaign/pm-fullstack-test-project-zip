@@ -5,14 +5,14 @@ class Snapshot < ApplicationRecord
 
   class << self
     def take
-      # Fetch messages from Postmark
+      # Fetches messages from the Postmark API
       messages = fetch_messages
 
       # Transform fetched messages to a format suitable for the graph
-      data = SnapshotProcessingService.new(messages).transform_messages
+      data = transform_messages_to_nodes_and_links(messages)
 
       # Create a new Snapshot instance with the transformed data
-      create(data: data)
+      create_snapshot(data)
     rescue StandardError => e
       Rails.logger.error "Error fetching messages from Postmark: #{e.message}"
       nil
@@ -20,10 +20,16 @@ class Snapshot < ApplicationRecord
 
     private
 
-    # Fetches messages from the Postmark API
+    def create_snapshot(data)
+      create(data: data)
+    end
+
+    def transform_messages_to_nodes_and_links(messages)
+      SnapshotProcessingService.new(messages).transform_messages
+    end
+
     def fetch_messages
-      connection = Postmark::ApiClient.new(Rails.application.config.x.postmark.api_token)
-      connection.get_messages(count: MESSAGE_COUNT)
+      PostmarkClientService.new(Rails.application.config.x.postmark.api_token).get_messages(MESSAGE_COUNT)
     end
   end
 end

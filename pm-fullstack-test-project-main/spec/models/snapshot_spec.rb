@@ -50,12 +50,16 @@ RSpec.describe Snapshot, type: :model do
     }
   end
 
-
   let(:snapshot) { Snapshot.take }
 
   before do
-    allow(Postmark::ApiClient).to receive(:new).and_return(double('Postmark::ApiClient', get_messages: mock_messages))
-    allow(SnapshotProcessingService).to receive(:new).with(mock_messages).and_return(double(transform_messages: transformed_data))
+    postmark_client_service = instance_double('PostmarkClientService')
+    allow(PostmarkClientService).to receive(:new).and_return(postmark_client_service)
+    allow(postmark_client_service).to receive(:get_messages).and_return(mock_messages)
+
+    snapshot_processing_service = instance_double('SnapshotProcessingService')
+    allow(SnapshotProcessingService).to receive(:new).with(mock_messages).and_return(snapshot_processing_service)
+    allow(snapshot_processing_service).to receive(:transform_messages).and_return(transformed_data)
   end
 
   describe '.take' do
@@ -73,7 +77,7 @@ RSpec.describe Snapshot, type: :model do
       let(:error_msg) { 'API error' }
 
       before do
-        allow(Postmark::ApiClient).to receive(:new).and_return(double('Postmark::ApiClient')).and_raise(StandardError, error_msg)
+        allow(PostmarkClientService).to receive(:new).and_return(double('PostmarkClientService')).and_raise(StandardError, error_msg)
       end
 
       it 'logs an error and returns nil' do
