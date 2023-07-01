@@ -33,11 +33,29 @@ RSpec.describe Snapshot, type: :model do
       }
     ]
   end
+
+  let(:transformed_data) do
+    {
+      'nodes' => [
+        { 'id' => 'Mariia Borel' },
+        { 'id' => 'Viktor Zaremba' }
+      ],
+      'links' => [
+        { 'source' => 'Mariia Borel', 'target' => 'Viktor Zaremba' },
+        { 'source' => 'Viktor Zaremba', 'target' => 'Mariia Borel' }
+      ],
+      'topics' => {
+        'Mariia Borel-Viktor Zaremba' => ['TopicA', 'TopicB', 'TopicC']
+      }
+    }
+  end
+
+
   let(:snapshot) { Snapshot.take }
-  let(:data) { snapshot.data.with_indifferent_access }
 
   before do
     allow(Postmark::ApiClient).to receive(:new).and_return(double('Postmark::ApiClient', get_messages: mock_messages))
+    allow(SnapshotProcessingService).to receive(:new).with(mock_messages).and_return(double(transform_messages: transformed_data))
   end
 
   describe '.take' do
@@ -46,82 +64,20 @@ RSpec.describe Snapshot, type: :model do
         expect(snapshot).to be_a(Snapshot)
       end
 
-      it 'transforms the messages into correct nodes' do
-        expect(data[:nodes]).to contain_exactly({ id: 'Mariia Borel' }, { id: 'Viktor Zaremba' })
-      end
-
-      it 'transforms the messages into correct links' do
-        expect(data[:links]).to contain_exactly({ source: 'Mariia Borel', target: 'Viktor Zaremba' }, { source: 'Viktor Zaremba', target: 'Mariia Borel' })
-      end
-
-      it 'transforms the messages into correct topics' do
-        expect(data[:topics]).to include('Mariia Borel-Viktor Zaremba' => ['TopicA', 'TopicB', 'TopicC'])
-      end
-
-      context 'when message is empty' do
-        let(:mock_messages) { [] }
-
-        it 'handles empty messages gracefully' do
-          expect(data[:nodes]).to be_empty
-          expect(data[:links]).to be_empty
-          expect(data[:topics]).to be_empty
-        end
-      end
-
-      context 'when messages have unusual formats' do
-        let(:mock_messages) do
-          [
-            {
-              from: 'John Doe <john@example.com>',
-              to: [
-                { 'Name' => 'Jane Doe', 'Email' => 'jane@example.com' },
-                { 'Name' => 'Robert Roe', 'Email' => 'robert@example.com' }
-              ],
-              subject: 'Group Chat'
-            },
-            {
-              from: 'No Name <noname@example.com>',
-              to: [
-                { 'Name' => 'Receiver', 'Email' => 'receiver@example.com' }
-              ],
-              subject: 'Anonymous Message'
-            }
-          ]
-        end
-
-        it 'handles unusual formats correctly' do
-          expect(data[:nodes]).to contain_exactly(
-            { id: 'John Doe' },
-            { id: 'Jane Doe' },
-            { id: 'Robert Roe' },
-            { id: 'No Name' },
-            { id: 'Receiver' }
-          )
-          expect(data[:links]).to contain_exactly(
-            { source: 'John Doe', target: 'Jane Doe' },
-            { source: 'John Doe', target: 'Robert Roe' },
-            { source: 'No Name', target: 'Receiver' }
-          )
-          expect(data[:topics]).to include(
-            'Jane Doe-John Doe' => ['Group Chat'],
-            'John Doe-Robert Roe' => ['Group Chat'],
-            'No Name-Receiver' => ['Anonymous Message']
-          )
-        end
+      it 'has the correct transformed data' do
+        expect(snapshot.data).to eq(transformed_data)
       end
     end
 
     context 'when fetch_messages fails' do
       let(:error_msg) { 'API error' }
 
+      before do
+        allow(Postmark::ApiClient).to receive(:new).and_return(double('Postmark::ApiClient')).and_raise(StandardError, error_msg)
+      end
+
       it 'logs an error and returns nil' do
-        instance = Postmark::ApiClient.new('api_token')
-
-        allow(instance).to receive(:get_messages)
-          .with(any_args).and_raise(StandardError.new(error_msg))
-
         expect(Rails.logger).to receive(:error).with('Error fetching messages from Postmark: API error')
-
         expect(snapshot).to be_nil
       end
     end
