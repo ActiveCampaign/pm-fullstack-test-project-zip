@@ -18,7 +18,7 @@ RSpec.describe Snapshot, type: :model do
         subject: 'TopicB'
       },
       {
-        from: 'Viktor Zaremba <viktor@example.com>',
+        from: '"Viktor Zaremba" <viktor@example.com>',
         to: [
           { 'Name' => 'Mariia Borel', 'Email' => 'mariia@example.com' }
         ],
@@ -33,6 +33,8 @@ RSpec.describe Snapshot, type: :model do
       }
     ]
   end
+  let(:snapshot) { Snapshot.take }
+  let(:data) { snapshot.data.with_indifferent_access }
 
   before do
     allow(Postmark::ApiClient).to receive(:new).and_return(double('Postmark::ApiClient', get_messages: mock_messages))
@@ -41,34 +43,25 @@ RSpec.describe Snapshot, type: :model do
   describe '.take' do
     context 'when fetch_messages is successful' do
       it 'returns a new Snapshot instance' do
-        snapshot = Snapshot.take
         expect(snapshot).to be_a(Snapshot)
       end
 
-      it 'transforms the messages into nodes, links, and topics correctly' do
-        snapshot = Snapshot.take
-        data = snapshot.data.with_indifferent_access
+      it 'transforms the messages into correct nodes' do
+        expect(data[:nodes]).to contain_exactly({ id: 'Mariia Borel' }, { id: 'Viktor Zaremba' })
+      end
 
-        expect(data[:nodes]).to contain_exactly(
-          { id: 'Mariia Borel' },
-          { id: 'Viktor Zaremba' }
-        )
-        expect(data[:links]).to contain_exactly(
-          { source: 'Mariia Borel', target: 'Viktor Zaremba' },
-          { source: 'Viktor Zaremba', target: 'Mariia Borel' }
-        )
-        expect(data[:topics]).to include(
-          'Mariia Borel-Viktor Zaremba' => ['TopicA', 'TopicB', 'TopicC']
-        )
+      it 'transforms the messages into correct links' do
+        expect(data[:links]).to contain_exactly({ source: 'Mariia Borel', target: 'Viktor Zaremba' }, { source: 'Viktor Zaremba', target: 'Mariia Borel' })
+      end
+
+      it 'transforms the messages into correct topics' do
+        expect(data[:topics]).to include('Mariia Borel-Viktor Zaremba' => ['TopicA', 'TopicB', 'TopicC'])
       end
 
       context 'when message is empty' do
         let(:mock_messages) { [] }
 
         it 'handles empty messages gracefully' do
-          snapshot = Snapshot.take
-          data = snapshot.data.with_indifferent_access
-
           expect(data[:nodes]).to be_empty
           expect(data[:links]).to be_empty
           expect(data[:topics]).to be_empty
@@ -97,9 +90,6 @@ RSpec.describe Snapshot, type: :model do
         end
 
         it 'handles unusual formats correctly' do
-          snapshot = Snapshot.take
-          data = snapshot.data.with_indifferent_access
-
           expect(data[:nodes]).to contain_exactly(
             { id: 'John Doe' },
             { id: 'Jane Doe' },
@@ -131,8 +121,6 @@ RSpec.describe Snapshot, type: :model do
           .with(any_args).and_raise(StandardError.new(error_msg))
 
         expect(Rails.logger).to receive(:error).with('Error fetching messages from Postmark: API error')
-
-        snapshot = Snapshot.take
 
         expect(snapshot).to be_nil
       end
