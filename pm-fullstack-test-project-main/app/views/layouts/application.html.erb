@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Postmark Full Stack Test Project</title>
+    <%= csrf_meta_tags %>
+    <%= csp_meta_tag %>
+
+    <%= javascript_pack_tag 'application' %>
+    <%= stylesheet_pack_tag 'application.css' %>
+  </head>
+
+  <body>
+    <div id="layout-wrapper">
+      <h1>The Big Postmark Graph</h1>
+      <%= yield %>
+    </div>
+  </body>
+</html>
