@@ -13,6 +13,8 @@ class SnapshotProcessingService
     topics = Hash.new { |h, k| h[k] = [] }
 
     messages.each do |message|
+      next unless message.is_a?(Hash) && message.key?(:from) && message.key?(:to)
+
       nodes, links, topics = extract_node_link_topic(message, nodes, links, topics)
     end
 

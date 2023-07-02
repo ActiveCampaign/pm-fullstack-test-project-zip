@@ -60,6 +60,41 @@ RSpec.describe SnapshotProcessingService, type: :service do
       end
     end
 
+    context 'when messages do not conform to expected structure' do
+      let(:mock_messages) do
+        [
+          # Valid message
+          {
+            from: '"John Doe" <john@example.com>',
+            to: [
+              { 'Name' => 'Jane Doe', 'Email' => 'jane@example.com' }
+            ],
+            subject: 'TopicA'
+          },
+          # Not a Hash
+          'Invalid Message',
+          # Missing :from key
+          {
+            to: [
+              { 'Name' => 'Jane Doe', 'Email' => 'jane@example.com' }
+            ],
+            subject: 'TopicB'
+          },
+          # Missing :to key
+          {
+            from: '"John Doe" <john@example.com>',
+            subject: 'TopicC'
+          }
+        ]
+      end
+
+      it 'ignores messages that are not Hashes or do not have :from and :to keys' do
+        expect(result[:nodes]).to contain_exactly({ id: 'John Doe' }, { id: 'Jane Doe' })
+        expect(result[:links]).to contain_exactly({ source: 'John Doe', target: 'Jane Doe' })
+        expect(result[:topics]).to include('Jane Doe-John Doe' => ['TopicA'])
+      end
+    end
+
     context 'when messages have unusual formats' do
       let(:mock_messages) do
         [
