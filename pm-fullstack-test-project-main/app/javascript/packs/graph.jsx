@@ -63,10 +63,12 @@ const Inspector = ({ source, target, topics }) => {
 Inspector.propTypes = {
   source: PropTypes.string,
   target: PropTypes.string,
-  topics: PropTypes.arrayOf(PropTypes.string),
+  topics: PropTypes.arrayOf(PropTypes.string).isRequired,
 }
 
-const App = ({ snapshot: { nodes, links, topics } }) => {
+const App = ({ snapshot }) => {
+  const { nodes, links, topics } = snapshot;
+
   const [currentSource, setCurrentSource] = useState()
   const [currentTarget, setCurrentTarget] = useState()
   const [currentTopics, setCurrentTopics] = useState([])
